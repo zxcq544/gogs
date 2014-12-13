@@ -6,6 +6,7 @@
 package ssh
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -25,20 +26,17 @@ func handleServerConn(keyId string, chans <-chan ssh.NewChannel) {
 			newChan.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
-		channel, requests, err := newChan.Accept()
+		ch, reqs, err := newChan.Accept()
 		if err != nil {
-			log.Error(3, "Could not accept channel: %v", err)
+			log.Error(3, "Error accepting channel: %v", err)
 			continue
 		}
 
 		go func(in <-chan *ssh.Request) {
-			defer channel.Close()
+			defer ch.Close()
 			for req := range in {
-				ok, payload := false, strings.TrimLeft(string(req.Payload), "\x00&")
+				ok, payload := false, strings.TrimLeft(string(req.Payload), "\x00&#")
 				fmt.Println("Request:", req.Type, req.WantReply, payload)
-				if req.WantReply {
-					fmt.Println(req.Reply(true, nil))
-				}
 				switch req.Type {
 				case "env":
 					args := strings.Split(strings.Replace(payload, "\x00", "", -1), "\v")
@@ -49,7 +47,7 @@ func handleServerConn(keyId string, chans <-chan ssh.NewChannel) {
 					_, _, err := com.ExecCmdBytes("env", args[0]+"="+args[1])
 					if err != nil {
 						log.Error(3, "env: %v", err)
-						channel.Stderr().Write([]byte(err.Error()))
+						ch.Stderr().Write([]byte(err.Error()))
 						break
 					}
 					ok = true
@@ -57,19 +55,24 @@ func handleServerConn(keyId string, chans <-chan ssh.NewChannel) {
 					os.Setenv("SSH_ORIGINAL_COMMAND", strings.TrimLeft(payload, "'("))
 					log.Info("Payload: %v", strings.TrimLeft(payload, "'("))
 					cmd := exec.Command("/Users/jiahuachen/Applications/Go/src/github.com/gogits/gogs/gogs", "serv", "key-"+keyId)
-					cmd.Stdout = channel
-					cmd.Stdin = channel
-					cmd.Stderr = channel.Stderr()
+					cmd.Stdout = ch
+					cmd.Stdin = ch
+					cmd.Stderr = ch.Stderr()
+
+					statusCode := make([]byte, 4)
 					if err := cmd.Run(); err != nil {
 						log.Error(3, "exec: %v", err)
+						binary.PutVarint(statusCode, 1)
 					} else {
 						ok = true
+						binary.PutVarint(statusCode, 0)
 					}
+					ch.SendRequest("exit-status", false, []byte{0, 0, 0, 2})
 				}
 				fmt.Println("Done:", ok)
 			}
 			fmt.Println("Done!!!")
-		}(requests)
+		}(reqs)
 	}
 }
 
@@ -82,13 +85,13 @@ func listen(config *ssh.ServerConfig, port string) {
 		// Once a ServerConfig has been configured, connections can be accepted.
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Error(3, "Fail to accept incoming connection: %v", err)
+			log.Error(3, "Error accepting incoming connection: %v", err)
 			continue
 		}
 		// Before use, a handshake must be performed on the incoming net.Conn.
 		sConn, chans, reqs, err := ssh.NewServerConn(conn, config)
 		if err != nil {
-			log.Error(3, "Fail to handshake: %v", err)
+			log.Error(3, "Error on handshaking: %v", err)
 			continue
 		}
 		// The incoming Request channel must be serviced.
@@ -108,11 +111,11 @@ func Listen(port string) {
 
 	privateBytes, err := ioutil.ReadFile("/Users/jiahuachen/.ssh/id_rsa")
 	if err != nil {
-		panic("failed to load private key")
+		panic("error loading private key")
 	}
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		panic("failed to parse private key")
+		panic("error parsing private key")
 	}
 	config.AddHostKey(private)
 
