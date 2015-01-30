@@ -6,8 +6,8 @@
 package ssh
 
 import (
-	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -35,41 +35,63 @@ func handleServerConn(keyId string, chans <-chan ssh.NewChannel) {
 		go func(in <-chan *ssh.Request) {
 			defer ch.Close()
 			for req := range in {
-				ok, payload := false, strings.TrimLeft(string(req.Payload), "\x00&#")
+				_, payload := false, strings.TrimLeft(string(req.Payload), "\x00&#")
 				fmt.Println("Request:", req.Type, req.WantReply, payload)
 				switch req.Type {
 				case "env":
 					args := strings.Split(strings.Replace(payload, "\x00", "", -1), "\v")
 					if len(args) != 2 {
-						break
+						return
 					}
 					args[0] = strings.TrimLeft(args[0], "\x04")
 					_, _, err := com.ExecCmdBytes("env", args[0]+"="+args[1])
 					if err != nil {
 						log.Error(3, "env: %v", err)
 						ch.Stderr().Write([]byte(err.Error()))
-						break
+						return
 					}
-					ok = true
 				case "exec":
-					os.Setenv("SSH_ORIGINAL_COMMAND", strings.TrimLeft(payload, "'("))
-					log.Info("Payload: %v", strings.TrimLeft(payload, "'("))
+					cmdName := strings.TrimLeft(payload, "'()")
+					os.Setenv("SSH_ORIGINAL_COMMAND", cmdName)
+					log.Info("Payload: %v", cmdName)
 					cmd := exec.Command("/Users/jiahuachen/Applications/Go/src/github.com/gogits/gogs/gogs", "serv", "key-"+keyId)
-					cmd.Stdout = ch
-					cmd.Stdin = ch
-					cmd.Stderr = ch.Stderr()
 
-					statusCode := make([]byte, 4)
-					if err := cmd.Run(); err != nil {
-						log.Error(3, "exec: %v", err)
-						binary.PutVarint(statusCode, 1)
-					} else {
-						ok = true
-						binary.PutVarint(statusCode, 0)
+					out, err := cmd.StdoutPipe()
+					if err != nil {
+						log.Error(3, "StdoutPipe: %v", err)
+						ch.Stderr().Write([]byte(err.Error()))
+						return
 					}
-					ch.SendRequest("exit-status", false, []byte{0, 0, 0, 2})
+					input, err := cmd.StdinPipe()
+					if err != nil {
+						log.Error(3, "StdinPipe: %v", err)
+						ch.Stderr().Write([]byte(err.Error()))
+						return
+					}
+					cmd.Stderr = os.Stderr
+
+					go io.Copy(ch, out)
+					go io.Copy(input, ch)
+
+					if err = cmd.Start(); err != nil {
+						log.Error(3, "Start: %v", err)
+						ch.Stderr().Write([]byte(err.Error()))
+						return
+					} else if err = cmd.Wait(); err != nil {
+						log.Error(3, "Wait: %v", err)
+						ch.Stderr().Write([]byte(err.Error()))
+						return
+					}
+
+					// cmd.Stdout = ch
+					// cmd.Stdin = ch
+					// cmd.Stderr = ch.Stderr()
+
+					ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
+					return
+				default:
 				}
-				fmt.Println("Done:", ok)
+				fmt.Println("Done")
 			}
 			fmt.Println("Done!!!")
 		}(reqs)
