@@ -15,6 +15,7 @@ import (
 	"github.com/go-xorm/xorm"
 	_ "github.com/lib/pq"
 
+	"github.com/gogits/gogs/models/migrations"
 	"github.com/gogits/gogs/modules/setting"
 )
 
@@ -45,22 +46,23 @@ func init() {
 		new(Issue), new(Comment), new(Attachment), new(IssueUser), new(Label), new(Milestone),
 		new(Mirror), new(Release), new(LoginSource), new(Webhook),
 		new(UpdateTask), new(HookTask), new(Team), new(OrgUser), new(TeamUser),
-		new(Notice))
+		new(Notice), new(EmailAddress))
 }
 
 func LoadModelsConfig() {
-	DbCfg.Type = setting.Cfg.MustValue("database", "DB_TYPE")
+	sec := setting.Cfg.Section("database")
+	DbCfg.Type = sec.Key("DB_TYPE").String()
 	if DbCfg.Type == "sqlite3" {
 		UseSQLite3 = true
 	}
-	DbCfg.Host = setting.Cfg.MustValue("database", "HOST")
-	DbCfg.Name = setting.Cfg.MustValue("database", "NAME")
-	DbCfg.User = setting.Cfg.MustValue("database", "USER")
+	DbCfg.Host = sec.Key("HOST").String()
+	DbCfg.Name = sec.Key("NAME").String()
+	DbCfg.User = sec.Key("USER").String()
 	if len(DbCfg.Pwd) == 0 {
-		DbCfg.Pwd = setting.Cfg.MustValue("database", "PASSWD")
+		DbCfg.Pwd = sec.Key("PASSWD").String()
 	}
-	DbCfg.SslMode = setting.Cfg.MustValue("database", "SSL_MODE")
-	DbCfg.Path = setting.Cfg.MustValue("database", "PATH", "data/gogs.db")
+	DbCfg.SslMode = sec.Key("SSL_MODE").String()
+	DbCfg.Path = sec.Key("PATH").MustString("data/gogs.db")
 }
 
 func getEngine() (*xorm.Engine, error) {
@@ -130,6 +132,11 @@ func NewEngine() (err error) {
 	if err = SetEngine(); err != nil {
 		return err
 	}
+
+	if err = migrations.Migrate(x); err != nil {
+		return err
+	}
+
 	if err = x.StoreEngine("InnoDB").Sync2(tables...); err != nil {
 		return fmt.Errorf("sync database struct error: %v\n", err)
 	}

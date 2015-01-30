@@ -98,7 +98,7 @@ func Home(ctx *middleware.Context) {
 				readmeExist := base.IsMarkdownFile(blob.Name()) || base.IsReadmeFile(blob.Name())
 				ctx.Data["ReadmeExist"] = readmeExist
 				if readmeExist {
-					ctx.Data["FileContent"] = string(base.RenderMarkdown(buf, ""))
+					ctx.Data["FileContent"] = string(base.RenderMarkdown(buf, branchLink))
 				} else {
 					if err, content := base.ToUtf8WithErr(buf); err != nil {
 						if err != nil {
@@ -154,8 +154,12 @@ func Home(ctx *middleware.Context) {
 
 		// Render issue index links.
 		for _, f := range files {
-			c := f[1].(*git.Commit)
-			c.CommitMessage = string(base.RenderIssueIndexPattern([]byte(c.CommitMessage), ctx.Repo.RepoLink))
+			switch c := f[1].(type) {
+			case *git.Commit:
+				c.CommitMessage = string(base.RenderIssueIndexPattern([]byte(c.CommitMessage), ctx.Repo.RepoLink))
+			case *git.SubModuleFile:
+				c.CommitMessage = string(base.RenderIssueIndexPattern([]byte(c.CommitMessage), ctx.Repo.RepoLink))
+			}
 		}
 		ctx.Data["Files"] = files
 

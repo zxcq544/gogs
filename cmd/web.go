@@ -25,6 +25,7 @@ import (
 	"github.com/macaron-contrib/oauth2"
 	"github.com/macaron-contrib/session"
 	"github.com/macaron-contrib/toolbox"
+	"gopkg.in/ini.v1"
 
 	api "github.com/gogits/go-gogs-client"
 
@@ -55,6 +56,12 @@ and it takes care of all the other things for you`,
 	Flags:  []cli.Flag{},
 }
 
+type VerChecker struct {
+	ImportPath string
+	Version    func() string
+	Expected   string
+}
+
 // checkVersion checks if binary matches the version of templates files.
 func checkVersion() {
 	// Templates.
@@ -67,17 +74,20 @@ func checkVersion() {
 	}
 
 	// Check dependency version.
-	macaronVer := git.MustParseVersion(strings.Join(strings.Split(macaron.Version(), ".")[:3], "."))
-	if macaronVer.LessThan(git.MustParseVersion("0.4.7")) {
-		log.Fatal(4, "Package macaron version is too old, did you forget to update?(github.com/Unknwon/macaron)")
+	checkers := []VerChecker{
+		{"github.com/Unknwon/macaron", macaron.Version, "0.5.0"},
+		{"github.com/macaron-contrib/binding", binding.Version, "0.0.4"},
+		{"github.com/macaron-contrib/cache", cache.Version, "0.0.7"},
+		{"github.com/macaron-contrib/csrf", csrf.Version, "0.0.1"},
+		{"github.com/macaron-contrib/i18n", i18n.Version, "0.0.5"},
+		{"github.com/macaron-contrib/session", session.Version, "0.1.6"},
+		{"gopkg.in/ini.v1", ini.Version, "1.0.1"},
 	}
-	i18nVer := git.MustParseVersion(i18n.Version())
-	if i18nVer.LessThan(git.MustParseVersion("0.0.2")) {
-		log.Fatal(4, "Package i18n version is too old, did you forget to update?(github.com/macaron-contrib/i18n)")
-	}
-	sessionVer := git.MustParseVersion(session.Version())
-	if sessionVer.LessThan(git.MustParseVersion("0.0.5")) {
-		log.Fatal(4, "Package session version is too old, did you forget to update?(github.com/macaron-contrib/session)")
+	for _, c := range checkers {
+		ver := strings.Join(strings.Split(c.Version(), ".")[:3], ".")
+		if git.MustParseVersion(ver).LessThan(git.MustParseVersion(c.Expected)) {
+			log.Fatal(4, "Package '%s' version is too old(%s -> %s), did you forget to update?", c.ImportPath, ver, c.Expected)
+		}
 	}
 }
 
@@ -119,18 +129,15 @@ func newMacaron() *macaron.Macaron {
 		Redirect:        true,
 	}))
 	m.Use(cache.Cacher(cache.Options{
-		Adapter:  setting.CacheAdapter,
-		Interval: setting.CacheInternal,
-		Conn:     setting.CacheConn,
+		Adapter:       setting.CacheAdapter,
+		AdapterConfig: setting.CacheConn,
+		Interval:      setting.CacheInternal,
 	}))
 	m.Use(captcha.Captchaer(captcha.Options{
 		SubURL: setting.AppSubUrl,
 	}))
-	m.Use(session.Sessioner(session.Options{
-		Provider: setting.SessionProvider,
-		Config:   *setting.SessionConfig,
-	}))
-	m.Use(csrf.Generate(csrf.Options{
+	m.Use(session.Sessioner(setting.SessionConfig))
+	m.Use(csrf.Csrfer(csrf.Options{
 		Secret:     setting.SecretKey,
 		SetCookie:  true,
 		Header:     "X-Csrf-Token",
@@ -235,6 +242,8 @@ func runWeb(*cli.Context) {
 		m.Get("", user.Settings)
 		m.Post("", bindIgnErr(auth.UpdateProfileForm{}), user.SettingsPost)
 		m.Post("/avatar", binding.MultipartForm(auth.UploadAvatarForm{}), user.SettingsAvatar)
+		m.Get("/email", user.SettingsEmails)
+		m.Post("/email", bindIgnErr(auth.AddEmailForm{}), user.SettingsEmailPost)
 		m.Get("/password", user.SettingsPassword)
 		m.Post("/password", bindIgnErr(auth.ChangePasswordForm{}), user.SettingsPasswordPost)
 		m.Get("/ssh", user.SettingsSSHKeys)
@@ -246,6 +255,7 @@ func runWeb(*cli.Context) {
 	m.Group("/user", func() {
 		// r.Get("/feeds", binding.Bind(auth.FeedsForm{}), user.Feeds)
 		m.Any("/activate", user.Activate)
+		m.Any("/activate_email", user.ActivateEmail)
 		m.Get("/email2user", user.Email2User)
 		m.Get("/forget_password", user.ForgotPasswd)
 		m.Post("/forget_password", user.ForgotPasswdPost)

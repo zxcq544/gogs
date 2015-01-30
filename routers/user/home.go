@@ -105,6 +105,9 @@ func Dashboard(ctx *middleware.Context) {
 		// FIXME: cache results?
 		u, err := models.GetUserByName(act.ActUserName)
 		if err != nil {
+			if err == models.ErrUserNotExist {
+				continue
+			}
 			ctx.Handle(500, "GetUserByName", err)
 			return
 		}
@@ -198,9 +201,21 @@ func Profile(ctx *middleware.Context) {
 		}
 		feeds := make([]*models.Action, 0, len(actions))
 		for _, act := range actions {
+			if act.IsPrivate {
+				if !ctx.IsSigned {
+					continue
+				}
+				if has, _ := models.HasAccess(ctx.User.Name, act.RepoUserName+"/"+act.RepoName,
+					models.READABLE); !has {
+					continue
+				}
+			}
 			// FIXME: cache results?
 			u, err := models.GetUserByName(act.ActUserName)
 			if err != nil {
+				if err == models.ErrUserNotExist {
+					continue
+				}
 				ctx.Handle(500, "GetUserByName", err)
 				return
 			}
