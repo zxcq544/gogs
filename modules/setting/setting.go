@@ -50,7 +50,8 @@ var (
 	Protocol           Scheme
 	Domain             string
 	HttpAddr, HttpPort string
-	SshPort            int
+	DisableSSH         bool
+	SSHPort            int
 	OfflineMode        bool
 	DisableRouterLog   bool
 	CertFile, KeyFile  string
@@ -178,7 +179,7 @@ func NewConfigContext() {
 			log.Fatal(4, "Fail to load custom 'conf/app.ini': %v", err)
 		}
 	} else {
-		log.Warn("No custom 'conf/app.ini' found, please go to '/install'")
+		log.Warn("No custom 'conf/app.ini' found, ignore this if you're running first time")
 	}
 	Cfg.NameMapper = ini.AllCapsUnderscore
 
@@ -209,7 +210,8 @@ func NewConfigContext() {
 	Domain = sec.Key("DOMAIN").MustString("localhost")
 	HttpAddr = sec.Key("HTTP_ADDR").MustString("0.0.0.0")
 	HttpPort = sec.Key("HTTP_PORT").MustString("3000")
-	SshPort = sec.Key("SSH_PORT").MustInt(22)
+	DisableSSH = sec.Key("DISABLE_SSH").MustBool()
+	SSHPort = sec.Key("SSH_PORT").MustInt(22)
 	OfflineMode = sec.Key("OFFLINE_MODE").MustBool()
 	DisableRouterLog = sec.Key("DISABLE_ROUTER_LOG").MustBool()
 	StaticRootPath = sec.Key("STATIC_ROOT_PATH").MustString(workDir)
@@ -311,6 +313,7 @@ func NewConfigContext() {
 var Service struct {
 	RegisterEmailConfirm           bool
 	DisableRegistration            bool
+	ShowRegistrationButton         bool
 	RequireSignInView              bool
 	EnableCacheAvatar              bool
 	EnableNotifyMail               bool
@@ -324,6 +327,7 @@ func newService() {
 	Service.ActiveCodeLives = Cfg.Section("service").Key("ACTIVE_CODE_LIVE_MINUTES").MustInt(180)
 	Service.ResetPwdCodeLives = Cfg.Section("service").Key("RESET_PASSWD_CODE_LIVE_MINUTES").MustInt(180)
 	Service.DisableRegistration = Cfg.Section("service").Key("DISABLE_REGISTRATION").MustBool()
+	Service.ShowRegistrationButton = Cfg.Section("service").Key("SHOW_REGISTRATION_BUTTON").MustBool(!Service.DisableRegistration)
 	Service.RequireSignInView = Cfg.Section("service").Key("REQUIRE_SIGNIN_VIEW").MustBool()
 	Service.EnableCacheAvatar = Cfg.Section("service").Key("ENABLE_CACHE_AVATAR").MustBool()
 	Service.EnableReverseProxyAuth = Cfg.Section("service").Key("ENABLE_REVERSE_PROXY_AUTHENTICATION").MustBool()

@@ -5,7 +5,7 @@ Gogs(Go Git Service) 是一个基于 Go 语言的自助 Git 服务。
 
 ![Demo](http://gogs.qiniudn.com/gogs_demo.gif)
 
-##### 当前版本：0.5.11 Beta
+##### 当前版本：0.5.13 Beta
 
 ## 开发目的
 
@@ -39,7 +39,7 @@ Gogs 的目标是打造一个最简单、最快速和最轻松的方式搭建自
 - Drone CI 持续部署集成
 - 支持 MySQL、PostgreSQL 以及 SQLite3 数据库
 - 社交帐号登录（GitHub、Google、QQ、微博）
-- 多语言支持（[7 种语言]([more](https://crowdin.com/project/gogs))）
+- 多语言支持（[9 种语言]([more](https://crowdin.com/project/gogs))）
 
 ## 系统要求
 

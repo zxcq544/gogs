@@ -63,12 +63,18 @@ func IsImageFile(data []byte) (string, bool) {
 	return contentType, false
 }
 
+// IsReadmeFile returns true if given file name suppose to be a README file.
 func IsReadmeFile(name string) bool {
 	name = strings.ToLower(name)
 	if len(name) < 6 {
 		return false
+	} else if len(name) == 6 {
+		if name == "readme" {
+			return true
+		}
+		return false
 	}
-	if name[:6] == "readme" {
+	if name[:7] == "readme." {
 		return true
 	}
 	return false
@@ -100,10 +106,10 @@ func (options *CustomRender) Image(out *bytes.Buffer, link []byte, title []byte,
 }
 
 var (
-	MentionPattern     = regexp.MustCompile(`@[0-9a-zA-Z_]{1,}`)
+	MentionPattern     = regexp.MustCompile(`((^|\s)@)[0-9a-zA-Z_]{1,}`)
 	commitPattern      = regexp.MustCompile(`(\s|^)https?.*commit/[0-9a-zA-Z]+(#+[0-9a-zA-Z-]*)?`)
 	issueFullPattern   = regexp.MustCompile(`(\s|^)https?.*issues/[0-9]+(#+[0-9a-zA-Z-]*)?`)
-	issueIndexPattern  = regexp.MustCompile(`#[0-9]+`)
+	issueIndexPattern  = regexp.MustCompile(`( |^)#[0-9]+`)
 	sha1CurrentPattern = regexp.MustCompile(`\b[0-9a-f]{40}\b`)
 )
 
@@ -123,7 +129,7 @@ func RenderSpecialLink(rawBytes []byte, urlPrefix string) []byte {
 			ms := MentionPattern.FindAll(line, -1)
 			for _, m := range ms {
 				line = bytes.Replace(line, m,
-					[]byte(fmt.Sprintf(`<a href="%s/user/%s">%s</a>`, setting.AppSubUrl, m[1:], m)), -1)
+					[]byte(fmt.Sprintf(`<a href="%s/%s">%s</a>`, setting.AppSubUrl, m[2:], m)), -1)
 			}
 		}
 
@@ -171,8 +177,8 @@ func RenderSha1CurrentPattern(rawBytes []byte, urlPrefix string) []byte {
 func RenderIssueIndexPattern(rawBytes []byte, urlPrefix string) []byte {
 	ms := issueIndexPattern.FindAll(rawBytes, -1)
 	for _, m := range ms {
-		rawBytes = bytes.Replace(rawBytes, m, []byte(fmt.Sprintf(
-			`<a href="%s/issues/%s">%s</a>`, urlPrefix, m[1:], m)), -1)
+		rawBytes = bytes.Replace(rawBytes, m, []byte(fmt.Sprintf(`<a href="%s/issues/%s">%s</a>`,
+			urlPrefix, strings.TrimPrefix(string(m[1:]), "#"), m)), -1)
 	}
 	return rawBytes
 }
@@ -212,7 +218,7 @@ func RenderRawMarkdown(body []byte, urlPrefix string) []byte {
 func RenderMarkdown(rawBytes []byte, urlPrefix string) []byte {
 	body := RenderSpecialLink(rawBytes, urlPrefix)
 	body = RenderRawMarkdown(body, urlPrefix)
-	body = XSS(body)
+	body = Sanitizer.SanitizeBytes(body)
 	return body
 }
 
