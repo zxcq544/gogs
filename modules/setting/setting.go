@@ -125,6 +125,7 @@ var (
 	Cfg          *ini.File
 	ConfRootPath string
 	CustomPath   string // Custom directory path.
+	CustomConf   string
 	ProdMode     bool
 	RunUser      string
 	IsWindows    bool
@@ -173,13 +174,16 @@ func NewConfigContext() {
 		CustomPath = path.Join(workDir, "custom")
 	}
 
-	cfgPath := path.Join(CustomPath, "conf/app.ini")
-	if com.IsFile(cfgPath) {
-		if err = Cfg.Append(cfgPath); err != nil {
-			log.Fatal(4, "Fail to load custom 'conf/app.ini': %v", err)
+	if len(CustomConf) == 0 {
+		CustomConf = path.Join(CustomPath, "conf/app.ini")
+	}
+
+	if com.IsFile(CustomConf) {
+		if err = Cfg.Append(CustomConf); err != nil {
+			log.Fatal(4, "Fail to load custom conf '%s': %v", CustomConf, err)
 		}
 	} else {
-		log.Warn("No custom 'conf/app.ini' found, ignore this if you're running first time")
+		log.Warn("Custom config (%s) not found, ignore this if you're running first time", CustomConf)
 	}
 	Cfg.NameMapper = ini.AllCapsUnderscore
 
@@ -233,7 +237,7 @@ func NewConfigContext() {
 	ReverseProxyAuthUser = sec.Key("REVERSE_PROXY_AUTHENTICATION_USER").MustString("X-WEBAUTH-USER")
 
 	sec = Cfg.Section("attachment")
-	AttachmentPath = sec.Key("PATH").MustString("data/attachments")
+	AttachmentPath = path.Join(workDir, sec.Key("PATH").MustString("data/attachments"))
 	AttachmentAllowedTypes = sec.Key("ALLOWED_TYPES").MustString("image/jpeg|image/png")
 	AttachmentMaxSize = sec.Key("MAX_SIZE").MustInt64(32)
 	AttachmentMaxFiles = sec.Key("MAX_FILES").MustInt(10)
@@ -290,7 +294,7 @@ func NewConfigContext() {
 
 	sec = Cfg.Section("picture")
 	PictureService = sec.Key("SERVICE").In("server", []string{"server"})
-	AvatarUploadPath = sec.Key("AVATAR_UPLOAD_PATH").MustString("data/avatars")
+	AvatarUploadPath = path.Join(workDir, sec.Key("AVATAR_UPLOAD_PATH").MustString("data/avatars"))
 	os.MkdirAll(AvatarUploadPath, os.ModePerm)
 	switch sec.Key("GRAVATAR_SOURCE").MustString("gravatar") {
 	case "duoshuo":
