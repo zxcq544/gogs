@@ -395,7 +395,8 @@ func runWeb(ctx *cli.Context) {
 		})
 
 		m.Group("/pulls", func() {
-			m.Combo("/new").Get(repo.NewPullRequest)
+			m.Combo("/new").Get(repo.NewPullRequest).
+				Post(bindIgnErr(auth.NewPullRequestForm{}), repo.NewPullRequestPost)
 		})
 	}, reqSignIn, middleware.RepoAssignment(true), reqAdmin)
 

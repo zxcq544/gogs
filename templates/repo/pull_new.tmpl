@@ -1,7 +1,7 @@
 {{template "ng/base/head" .}}
 {{template "ng/base/header" .}}
 <div id="repo-wrapper">
-  <form id="repo-create-form" class="form form-align panel panel-radius" action="{{AppSubUrl}}{{.RepoLink}}/pull/new" method="post">
+  <form id="repo-create-form" class="form form-align panel panel-radius" method="post">
     {{.CsrfTokenHtml}}
       <div class="panel-header">
         <h2>{{.i18n.Tr "repo.pulls.new"}}</h2>
@@ -14,7 +14,7 @@
         </div>
         <div class="field">
             <label for="from-branch" class="req">{{.i18n.Tr "repo.pulls.from_branch"}}</label>
-            <input id="from-branch" type="hidden" name="form_branch" value="{{.BranchName}}" />
+            <input id="from-branch" type="hidden" name="from_branch" value="{{.BranchName}}" />
             <div class="inline-block drop">
                 <a class="drop-bottom">
                   <strong id="from-branch-name">{{.BranchName}}</strong>
@@ -59,8 +59,8 @@
             <input class="ipt ipt-large ipt-radius {{if .Err_Title}}ipt-error{{end}}" id="title" name="title" value="{{.title}}" required />
         </div>
         <div class="field clear">
-          <label class="left req" for="desc">{{.i18n.Tr "repo.repo_desc"}}</label>
-          <textarea class="ipt ipt-large ipt-radius {{if .Err_Description}}ipt-error{{end}}" id="desc" name="desc" required>{{.desc}}</textarea>
+          <label class="left" for="description">{{.i18n.Tr "repo.repo_desc"}}</label>
+          <textarea class="ipt ipt-large ipt-radius {{if .Err_Description}}ipt-error{{end}}" id="description" name="description">{{.description}}</textarea>
         </div>
         <div class="field">
             <label></label>

@@ -7,8 +7,11 @@ package models
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"html/template"
+	"io/ioutil"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +20,7 @@ import (
 	"github.com/go-xorm/xorm"
 
 	"github.com/gogits/gogs/modules/log"
+	"github.com/gogits/gogs/modules/process"
 )
 
 var (
@@ -31,20 +35,23 @@ var (
 
 // Issue represents an issue or pull request of repository.
 type Issue struct {
-	Id              int64
-	RepoId          int64 `xorm:"INDEX"`
-	Index           int64 // Index in one repository.
-	Name            string
-	Repo            *Repository `xorm:"-"`
-	PosterId        int64
-	Poster          *User    `xorm:"-"`
-	LabelIds        string   `xorm:"TEXT"`
-	Labels          []*Label `xorm:"-"`
-	MilestoneId     int64
-	AssigneeId      int64
-	Assignee        *User `xorm:"-"`
-	IsRead          bool  `xorm:"-"`
-	IsPull          bool  // Indicates whether is a pull request or not.
+	ID          int64 `xorm:"pk autoincr"`
+	RepoID      int64 `xorm:"INDEX"`
+	Index       int64 // Index in one repository.
+	Name        string
+	Repo        *Repository `xorm:"-"`
+	PosterID    int64
+	Poster      *User    `xorm:"-"`
+	LabelIds    string   `xorm:"TEXT"`
+	Labels      []*Label `xorm:"-"`
+	MilestoneID int64
+	AssigneeID  int64
+	Assignee    *User `xorm:"-"`
+	IsRead      bool  `xorm:"-"`
+
+	// Indicates whether it is a pull request or not.
+	IsPull bool
+
 	IsClosed        bool
 	Content         string `xorm:"TEXT"`
 	RenderedContent string `xorm:"-"`
@@ -56,7 +63,7 @@ type Issue struct {
 }
 
 func (i *Issue) GetPoster() (err error) {
-	i.Poster, err = GetUserById(i.PosterId)
+	i.Poster, err = GetUserById(i.PosterID)
 	if err == ErrUserNotExist {
 		i.Poster = &User{Name: "FakeUser"}
 		return nil
@@ -88,10 +95,10 @@ func (i *Issue) GetLabels() error {
 }
 
 func (i *Issue) GetAssignee() (err error) {
-	if i.AssigneeId == 0 {
+	if i.AssigneeID == 0 {
 		return nil
 	}
-	i.Assignee, err = GetUserById(i.AssigneeId)
+	i.Assignee, err = GetUserById(i.AssigneeID)
 	if err == ErrUserNotExist {
 		return nil
 	}
@@ -99,15 +106,15 @@ func (i *Issue) GetAssignee() (err error) {
 }
 
 func (i *Issue) Attachments() []*Attachment {
-	a, _ := GetAttachmentsForIssue(i.Id)
+	a, _ := GetAttachmentsForIssue(i.ID)
 	return a
 }
 
 func (i *Issue) AfterDelete() {
-	_, err := DeleteAttachmentsByIssue(i.Id, true)
+	_, err := DeleteAttachmentsByIssue(i.ID, true)
 
 	if err != nil {
-		log.Info("Could not delete files for issue #%d: %s", i.Id, err)
+		log.Info("Could not delete files for issue #%d: %s", i.ID, err)
 	}
 }
 
@@ -123,7 +130,7 @@ func NewIssue(issue *Issue) (err error) {
 		return err
 	}
 
-	if _, err = sess.Exec("UPDATE `repository` SET num_issues=num_issues+1 WHERE id = ?", issue.RepoId); err != nil {
+	if _, err = sess.Exec("UPDATE `repository` SET num_issues=num_issues+1 WHERE id = ?", issue.RepoID); err != nil {
 		return err
 	}
 
@@ -131,12 +138,12 @@ func NewIssue(issue *Issue) (err error) {
 		return err
 	}
 
-	if issue.MilestoneId > 0 {
+	if issue.MilestoneID > 0 {
 		// FIXES(280): Update milestone counter.
-		return ChangeMilestoneAssign(0, issue.MilestoneId, issue)
+		return ChangeMilestoneAssign(0, issue.MilestoneID, issue)
 	}
 
-	return
+	return nil
 }
 
 // GetIssueByRef returns an Issue specified by a GFM reference.
@@ -159,12 +166,12 @@ func GetIssueByRef(ref string) (issue *Issue, err error) {
 		return
 	}
 
-	return GetIssueByIndex(repo.Id, issueNumber)
+	return GetIssueByIndex(repo.ID, issueNumber)
 }
 
 // GetIssueByIndex returns issue by given index in repository.
 func GetIssueByIndex(rid, index int64) (*Issue, error) {
-	issue := &Issue{RepoId: rid, Index: index}
+	issue := &Issue{RepoID: rid, Index: index}
 	has, err := x.Get(issue)
 	if err != nil {
 		return nil, err
@@ -176,7 +183,7 @@ func GetIssueByIndex(rid, index int64) (*Issue, error) {
 
 // GetIssueById returns an issue by ID.
 func GetIssueById(id int64) (*Issue, error) {
-	issue := &Issue{Id: id}
+	issue := &Issue{ID: id}
 	has, err := x.Get(issue)
 	if err != nil {
 		return nil, err
@@ -287,7 +294,7 @@ func NewIssueUserPairs(repo *Repository, issueID, orgID, posterID, assigneeID in
 
 	iu := &IssueUser{
 		IssueId: issueID,
-		RepoId:  repo.Id,
+		RepoId:  repo.ID,
 	}
 
 	isNeedAddPoster := true
@@ -445,7 +452,7 @@ func GetUserIssueStats(uid int64, filterMode int) *IssueStats {
 
 // UpdateIssue updates information of issue.
 func UpdateIssue(issue *Issue) error {
-	_, err := x.Id(issue.Id).AllCols().Update(issue)
+	_, err := x.Id(issue.ID).AllCols().Update(issue)
 
 	if err != nil {
 		return err
@@ -589,7 +596,7 @@ func DeleteLabel(repoId int64, strId string) error {
 
 	for _, issue := range issues {
 		issue.LabelIds = strings.Replace(issue.LabelIds, "$"+strId+"|", "", -1)
-		if _, err = sess.Id(issue.Id).AllCols().Update(issue); err != nil {
+		if _, err = sess.Id(issue.ID).AllCols().Update(issue); err != nil {
 			sess.Rollback()
 			return err
 		}
@@ -714,7 +721,7 @@ func ChangeMilestoneStatus(m *Milestone, isClosed bool) (err error) {
 	} else {
 		repo.NumClosedMilestones--
 	}
-	if _, err = sess.Id(repo.Id).Update(repo); err != nil {
+	if _, err = sess.Id(repo.ID).Update(repo); err != nil {
 		sess.Rollback()
 		return err
 	}
@@ -724,11 +731,11 @@ func ChangeMilestoneStatus(m *Milestone, isClosed bool) (err error) {
 // ChangeMilestoneIssueStats updates the open/closed issues counter and progress for the
 // milestone associated witht the given issue.
 func ChangeMilestoneIssueStats(issue *Issue) error {
-	if issue.MilestoneId == 0 {
+	if issue.MilestoneID == 0 {
 		return nil
 	}
 
-	m, err := GetMilestoneById(issue.MilestoneId)
+	m, err := GetMilestoneById(issue.MilestoneID)
 
 	if err != nil {
 		return err
@@ -776,8 +783,7 @@ func ChangeMilestoneAssign(oldMid, mid int64, issue *Issue) (err error) {
 			return err
 		}
 
-		rawSql := "UPDATE `issue_user` SET milestone_id = 0 WHERE issue_id = ?"
-		if _, err = sess.Exec(rawSql, issue.Id); err != nil {
+		if _, err = sess.Exec("UPDATE `issue_user` SET milestone_id = 0 WHERE issue_id = ?", issue.ID); err != nil {
 			sess.Rollback()
 			return err
 		}
@@ -804,8 +810,7 @@ func ChangeMilestoneAssign(oldMid, mid int64, issue *Issue) (err error) {
 			return err
 		}
 
-		rawSql := "UPDATE `issue_user` SET milestone_id = ? WHERE issue_id = ?"
-		if _, err = sess.Exec(rawSql, m.Id, issue.Id); err != nil {
+		if _, err = sess.Exec("UPDATE `issue_user` SET milestone_id=? WHERE issue_id=?", m.Id, issue.ID); err != nil {
 			sess.Rollback()
 			return err
 		}
@@ -1081,4 +1086,130 @@ func DeleteAttachmentsByComment(commentId int64, remove bool) (int, error) {
 	}
 
 	return DeleteAttachments(attachments, remove)
+}
+
+// __________      .__  .__ __________                                     __
+// \______   \__ __|  | |  |\______   \ ____  ________ __   ____   _______/  |_
+//  |     ___/  |  \  | |  | |       _// __ \/ ____/  |  \_/ __ \ /  ___/\   __\
+//  |    |   |  |  /  |_|  |_|    |   \  ___< <_|  |  |  /\  ___/ \___ \  |  |
+//  |____|   |____/|____/____/____|_  /\___  >__   |____/  \___  >____  > |__|
+//                                  \/     \/   |__|           \/     \/
+
+var ErrPullRequestNotExist = errors.New("Pull request does not exist")
+
+// PullRepo represents relation between pull request and repositories.
+type PullRepo struct {
+	ID           int64 `xorm:"pk autoincr"`
+	PullID       int64 `xorm:"INDEX"`
+	FromRepoID   int64 `xorm:"UNIQUE(s)"`
+	ToRepoID     int64 `xorm:"UNIQUE(s)"`
+	FromBranch   string
+	ToBranch     string
+	CanAutoMerge bool
+}
+
+// NewPullRequest creates new pull request for repository.
+func NewPullRequest(pr *Issue, pullRepo *PullRepo) error {
+	toRepo, err := GetRepositoryById(pullRepo.ToRepoID)
+	if err != nil {
+		return err
+	}
+	fromRepo, err := GetRepositoryById(pullRepo.FromRepoID)
+	if err != nil {
+		return err
+	}
+
+	sess := x.NewSession()
+	defer sessionRelease(sess)
+	if err = sess.Begin(); err != nil {
+		return err
+	}
+
+	if _, err = sess.InsertOne(pr); err != nil {
+		return err
+	} else if _, err = sess.Exec("UPDATE `repository` SET num_pulls=num_pulls+1 WHERE id=?", pr.RepoID); err != nil {
+		return err
+	}
+
+	pullRepo.PullID = pr.ID
+
+	// Clone target repository.
+	toRepoPath, err := toRepo.RepoPath()
+	if err != nil {
+		return err
+	}
+	tmpRepoPath := path.Join(toRepoPath, "pulls", com.ToStr(pr.ID)+".git")
+	_, stderr, err := process.ExecTimeout(10*time.Minute,
+		fmt.Sprintf("NewPullRequest(clone target repository): %d", fromRepo.ID),
+		"git", "clone", toRepoPath, tmpRepoPath)
+	if err != nil {
+		return fmt.Errorf("git clone: ", stderr)
+	}
+	defer os.RemoveAll(tmpRepoPath)
+
+	// Checkout a temporary branch.
+	tmpBranch := com.ToStr(time.Now().UnixNano())
+	_, stderr, err = process.ExecDir(-1, tmpRepoPath,
+		fmt.Sprintf("NewPullRequest(checkout temporary branch): %d", fromRepo.ID),
+		"git", "checkout", "-b", tmpBranch)
+	if err != nil {
+		return fmt.Errorf("git checkout -b: ", stderr)
+	}
+
+	// Pull downstream code.
+	fromRepoPath, err := fromRepo.RepoPath()
+	if err != nil {
+		return err
+	}
+	_, stderr, err = process.ExecDir(10*time.Minute, tmpRepoPath,
+		fmt.Sprintf("NewPullRequest(pull downstream code): %d", fromRepo.ID),
+		"git", "pull", fromRepoPath, pullRepo.FromBranch)
+	if err != nil {
+		if strings.Contains(stderr, "fatal:") {
+			return fmt.Errorf("git pull: %s", stderr)
+		}
+	} else {
+		pullRepo.CanAutoMerge = true
+	}
+
+	if pullRepo.CanAutoMerge {
+		// Generate patch.
+		var patch string
+		patch, stderr, err = process.ExecDir(10*time.Minute, tmpRepoPath,
+			fmt.Sprintf("NewPullRequest(generate patch): %d", fromRepo.ID),
+			"git", "diff", "-p", pullRepo.ToBranch, tmpBranch)
+		if err != nil {
+			return fmt.Errorf("git diff -p: ", stderr)
+		}
+
+		patchPath := path.Join(toRepoPath, "pulls", com.ToStr(pr.ID)+".patch")
+		if err := ioutil.WriteFile(patchPath, []byte(patch), os.ModePerm); err != nil {
+			return fmt.Errorf("write patch: %v", err)
+		}
+	}
+
+	if _, err = sess.InsertOne(pullRepo); err != nil {
+		return err
+	}
+
+	return sess.Commit()
+}
+
+func GetPullRequest(fromRepoID int64) (*Issue, error) {
+	pullRepo := &PullRepo{FromRepoID: fromRepoID}
+	has, err := x.Get(pullRepo)
+	if err != nil {
+		return nil, err
+	} else if !has {
+		return nil, ErrPullRequestNotExist
+	}
+
+	pr := new(Issue)
+	has, err = x.Id(pullRepo.PullID).Get(pr)
+	if err != nil {
+		return nil, err
+	} else if !has {
+		return nil, ErrIssueNotExist
+	}
+	return pr, nil
 }

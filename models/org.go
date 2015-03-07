@@ -387,11 +387,11 @@ func RemoveOrgUser(orgId, uid int64) error {
 		UserID: u.Id,
 	}
 	for _, repo := range org.Repos {
-		access.RepoID = repo.Id
+		access.RepoID = repo.ID
 		if _, err = sess.Delete(access); err != nil {
 			sess.Rollback()
 			return err
-		} else if err = WatchRepo(u.Id, repo.Id, false); err != nil {
+		} else if err = WatchRepo(u.Id, repo.ID, false); err != nil {
 			sess.Rollback()
 			return err
 		}
@@ -496,7 +496,7 @@ func (t *Team) HasRepository(repoID int64) bool {
 }
 
 func (t *Team) addRepository(e Engine, repo *Repository) (err error) {
-	if err = addTeamRepo(e, t.OrgID, t.ID, repo.Id); err != nil {
+	if err = addTeamRepo(e, t.OrgID, t.ID, repo.ID); err != nil {
 		return err
 	}
 
@@ -513,7 +513,7 @@ func (t *Team) addRepository(e Engine, repo *Repository) (err error) {
 		return fmt.Errorf("getMembers: %v", err)
 	}
 	for _, u := range t.Members {
-		if err = watchRepo(e, u.Id, repo.Id, true); err != nil {
+		if err = watchRepo(e, u.Id, repo.ID, true); err != nil {
 			return fmt.Errorf("watchRepo: %v", err)
 		}
 	}
@@ -522,9 +522,9 @@ func (t *Team) addRepository(e Engine, repo *Repository) (err error) {
 
 // AddRepository adds new repository to team of organization.
 func (t *Team) AddRepository(repo *Repository) (err error) {
-	if repo.OwnerId != t.OrgID {
+	if repo.OwnerID != t.OrgID {
 		return errors.New("Repository does not belong to organization")
-	} else if t.HasRepository(repo.Id) {
+	} else if t.HasRepository(repo.ID) {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (t *Team) AddRepository(repo *Repository) (err error) {
 }
 
 func (t *Team) removeRepository(e Engine, repo *Repository, recalculate bool) (err error) {
-	if err = removeTeamRepo(e, t.ID, repo.Id); err != nil {
+	if err = removeTeamRepo(e, t.ID, repo.ID); err != nil {
 		return err
 	}
 
@@ -569,7 +569,7 @@ func (t *Team) removeRepository(e Engine, repo *Repository, recalculate bool) (e
 			continue
 		}
 
-		if err = watchRepo(e, u.Id, repo.Id, false); err != nil {
+		if err = watchRepo(e, u.Id, repo.ID, false); err != nil {
 			return err
 		}
 	}

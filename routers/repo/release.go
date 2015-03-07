@@ -29,7 +29,7 @@ func Releases(ctx *middleware.Context) {
 		return
 	}
 
-	rels, err := models.GetReleasesByRepoId(ctx.Repo.Repository.Id)
+	rels, err := models.GetReleasesByRepoId(ctx.Repo.Repository.ID)
 	if err != nil {
 		ctx.Handle(500, "GetReleasesByRepoId", err)
 		return
@@ -185,7 +185,7 @@ func NewReleasePost(ctx *middleware.Context, form auth.NewReleaseForm) {
 	}
 
 	rel := &models.Release{
-		RepoId:       ctx.Repo.Repository.Id,
+		RepoId:       ctx.Repo.Repository.ID,
 		PublisherId:  ctx.User.Id,
 		Title:        form.Title,
 		TagName:      form.TagName,
@@ -217,7 +217,7 @@ func EditRelease(ctx *middleware.Context) {
 	}
 
 	tagName := ctx.Params(":tagname")
-	rel, err := models.GetRelease(ctx.Repo.Repository.Id, tagName)
+	rel, err := models.GetRelease(ctx.Repo.Repository.ID, tagName)
 	if err != nil {
 		if err == models.ErrReleaseNotExist {
 			ctx.Handle(404, "GetRelease", err)
@@ -240,7 +240,7 @@ func EditReleasePost(ctx *middleware.Context, form auth.EditReleaseForm) {
 	}
 
 	tagName := ctx.Params(":tagname")
-	rel, err := models.GetRelease(ctx.Repo.Repository.Id, tagName)
+	rel, err := models.GetRelease(ctx.Repo.Repository.ID, tagName)
 	if err != nil {
 		if err == models.ErrReleaseNotExist {
 			ctx.Handle(404, "GetRelease", err)

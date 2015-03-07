@@ -104,7 +104,7 @@ func Dashboard(ctx *middleware.Context) {
 	for _, act := range actions {
 		if act.IsPrivate {
 			// This prevents having to retrieve the repository for each action
-			repo := &models.Repository{Id: act.RepoId, IsPrivate: true}
+			repo := &models.Repository{ID: act.RepoId, IsPrivate: true}
 			if act.RepoUserName != ctx.User.LowerName {
 				if has, _ := models.HasAccess(ctx.User, repo, models.ACCESS_MODE_READ); !has {
 					continue
@@ -216,7 +216,7 @@ func Profile(ctx *middleware.Context) {
 					continue
 				}
 				// This prevents having to retrieve the repository for each action
-				repo := &models.Repository{Id: act.RepoId, IsPrivate: true}
+				repo := &models.Repository{ID: act.RepoId, IsPrivate: true}
 				if act.RepoUserName != ctx.User.LowerName {
 					if has, _ := models.HasAccess(ctx.User, repo, models.ACCESS_MODE_READ); !has {
 						continue
@@ -297,21 +297,21 @@ func Issues(ctx *middleware.Context) {
 			continue
 		}
 
-		repoIds = append(repoIds, repo.Id)
+		repoIds = append(repoIds, repo.ID)
 		repo.NumOpenIssues = repo.NumIssues - repo.NumClosedIssues
 		issueStats.AllCount += int64(repo.NumOpenIssues)
 
 		if isShowClosed {
 			if repo.NumClosedIssues > 0 {
 				if filterMode == models.FM_CREATE {
-					repo.NumClosedIssues = int(models.GetIssueCountByPoster(ctx.User.Id, repo.Id, isShowClosed))
+					repo.NumClosedIssues = int(models.GetIssueCountByPoster(ctx.User.Id, repo.ID, isShowClosed))
 				}
 				showRepos = append(showRepos, repo)
 			}
 		} else {
 			if repo.NumOpenIssues > 0 {
 				if filterMode == models.FM_CREATE {
-					repo.NumOpenIssues = int(models.GetIssueCountByPoster(ctx.User.Id, repo.Id, isShowClosed))
+					repo.NumOpenIssues = int(models.GetIssueCountByPoster(ctx.User.Id, repo.ID, isShowClosed))
 				}
 				showRepos = append(showRepos, repo)
 			}
@@ -352,13 +352,13 @@ func Issues(ctx *middleware.Context) {
 			}
 		}
 
-		issues[i].Repo, err = models.GetRepositoryById(issues[i].RepoId)
+		issues[i].Repo, err = models.GetRepositoryById(issues[i].RepoID)
 		if err != nil {
 			if err == models.ErrRepoNotExist {
-				log.Warn("user.Issues(GetRepositoryById #%d): repository not exist", issues[i].RepoId)
+				log.Warn("user.Issues(GetRepositoryById #%d): repository not exist", issues[i].RepoID)
 				continue
 			} else {
-				ctx.Handle(500, fmt.Sprintf("user.Issues(GetRepositoryById #%d)", issues[i].RepoId), err)
+				ctx.Handle(500, fmt.Sprintf("user.Issues(GetRepositoryById #%d)", issues[i].RepoID), err)
 				return
 			}
 		}

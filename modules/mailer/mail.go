@@ -156,7 +156,7 @@ func SendResetPasswdMail(r macaron.Render, u *models.User) {
 
 // SendIssueNotifyMail sends mail notification of all watchers of repository.
 func SendIssueNotifyMail(u, owner *models.User, repo *models.Repository, issue *models.Issue) ([]string, error) {
-	ws, err := models.GetWatchers(repo.Id)
+	ws, err := models.GetWatchers(repo.ID)
 	if err != nil {
 		return nil, errors.New("mail.NotifyWatchers(GetWatchers): " + err.Error())
 	}

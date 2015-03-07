@@ -109,6 +109,24 @@ func (f *CreateIssueForm) Validate(ctx *macaron.Context, errs binding.Errors) bi
 	return validate(errs, ctx.Data, f, ctx.Locale)
 }
 
+// __________      .__  .__ __________                                     __
+// \______   \__ __|  | |  |\______   \ ____  ________ __   ____   _______/  |_
+//  |     ___/  |  \  | |  | |       _// __ \/ ____/  |  \_/ __ \ /  ___/\   __\
+//  |    |   |  |  /  |_|  |_|    |   \  ___< <_|  |  |  /\  ___/ \___ \  |  |
+//  |____|   |____/|____/____/____|_  /\___  >__   |____/  \___  >____  > |__|
+//                                  \/     \/   |__|           \/     \/
+
+type NewPullRequestForm struct {
+	FromBranch  string `binding:"Required"`
+	ToBranch    string `binding:"Required"`
+	Title       string `binding:"Required;MaxSize(255)"`
+	Description string
+}
+
+func (f *NewPullRequestForm) Validate(ctx *macaron.Context, errs binding.Errors) binding.Errors {
+	return validate(errs, ctx.Data, f, ctx.Locale)
+}
+
 //    _____  .__.__                   __
 //   /     \ |__|  |   ____   _______/  |_  ____   ____   ____
 //  /  \ /  \|  |  | _/ __ \ /  ___/\   __\/  _ \ /    \_/ __ \

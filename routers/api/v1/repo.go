@@ -28,7 +28,7 @@ func ToApiRepository(owner *models.User, repo *models.Repository, permission api
 		log.Error(4, "CloneLink: %v", err)
 	}
 	return &api.Repository{
-		Id:          repo.Id,
+		Id:          repo.ID,
 		Owner:       *ToApiUser(owner),
 		FullName:    owner.Name + "/" + repo.Name,
 		Private:     repo.IsPrivate,
@@ -89,7 +89,7 @@ func SearchRepos(ctx *middleware.Context) {
 			return
 		}
 		results[i] = &api.Repository{
-			Id:       repos[i].Id,
+			Id:       repos[i].ID,
 			FullName: path.Join(repos[i].Owner.Name, repos[i].Name),
 		}
 	}
@@ -110,7 +110,7 @@ func createRepo(ctx *middleware.Context, owner *models.User, opt api.CreateRepoO
 		} else {
 			log.Error(4, "CreateRepository: %v", err)
 			if repo != nil {
-				if err = models.DeleteRepository(ctx.User.Id, repo.Id, ctx.User.Name); err != nil {
+				if err = models.DeleteRepository(ctx.User.Id, repo.ID, ctx.User.Name); err != nil {
 					log.Error(4, "DeleteRepository: %v", err)
 				}
 			}
@@ -216,7 +216,7 @@ func MigrateRepo(ctx *middleware.Context, form auth.MigrateRepoForm) {
 	repo, err := models.MigrateRepository(ctxUser, form.RepoName, form.Description, form.Private, form.Mirror, remoteAddr)
 	if err != nil {
 		if repo != nil {
-			if errDelete := models.DeleteRepository(ctxUser.Id, repo.Id, ctxUser.Name); errDelete != nil {
+			if errDelete := models.DeleteRepository(ctxUser.Id, repo.ID, ctxUser.Name); errDelete != nil {
 				log.Error(4, "DeleteRepository: %v", errDelete)
 			}
 		}

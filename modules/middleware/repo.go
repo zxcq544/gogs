@@ -250,7 +250,7 @@ func RepoAssignment(redirect bool, args ...bool) macaron.Handler {
 		ctx.Data["HasAccess"] = true
 
 		if repo.IsMirror {
-			ctx.Repo.Mirror, err = models.GetMirror(repo.Id)
+			ctx.Repo.Mirror, err = models.GetMirror(repo.ID)
 			if err != nil {
 				ctx.Handle(500, "GetMirror", err)
 				return
@@ -320,8 +320,8 @@ func RepoAssignment(redirect bool, args ...bool) macaron.Handler {
 		}
 
 		if ctx.IsSigned {
-			ctx.Data["IsWatchingRepo"] = models.IsWatching(ctx.User.Id, repo.Id)
-			ctx.Data["IsStaringRepo"] = models.IsStaring(ctx.User.Id, repo.Id)
+			ctx.Data["IsWatchingRepo"] = models.IsWatching(ctx.User.Id, repo.ID)
+			ctx.Data["IsStaringRepo"] = models.IsStaring(ctx.User.Id, repo.ID)
 		}
 
 		ctx.Data["TagName"] = ctx.Repo.TagName
